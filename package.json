@@ -1,0 +1,21 @@
+{
+  "name": "dbx-cli-root",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agent-first Dropbox CLI",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/davegomez/dbx-cli.git"
+  },
+  "homepage": "https://github.com/davegomez/dbx-cli",
+  "bugs": {
+    "url": "https://github.com/davegomez/dbx-cli/issues"
+  },
+  "workspaces": [
+    "npm"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

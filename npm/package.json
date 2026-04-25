@@ -1,0 +1,74 @@
+{
+  "name": "dbx-cli",
+  "version": "0.1.0",
+  "description": "Agent-first Dropbox CLI",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/davegomez/dbx-cli.git",
+    "directory": "npm"
+  },
+  "homepage": "https://github.com/davegomez/dbx-cli",
+  "bugs": {
+    "url": "https://github.com/davegomez/dbx-cli/issues"
+  },
+  "bin": {
+    "dbx": "run.js"
+  },
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "install.js",
+    "platform.js",
+    "run.js",
+    "package.json"
+  ],
+  "preferUnplugged": true,
+  "publishConfig": {
+    "provenance": true
+  },
+  "keywords": [
+    "dropbox",
+    "dropbox-api",
+    "cli",
+    "agent",
+    "ai-agent",
+    "automation",
+    "oauth2",
+    "rust"
+  ],
+  "supportedPlatforms": {
+    "aarch64-apple-darwin": {
+      "artifact": "dbx-cli-aarch64-apple-darwin.tar.gz",
+      "binary": "dbx"
+    },
+    "x86_64-apple-darwin": {
+      "artifact": "dbx-cli-x86_64-apple-darwin.tar.gz",
+      "binary": "dbx"
+    },
+    "aarch64-unknown-linux-gnu": {
+      "artifact": "dbx-cli-aarch64-unknown-linux-gnu.tar.gz",
+      "binary": "dbx"
+    },
+    "aarch64-unknown-linux-musl": {
+      "artifact": "dbx-cli-aarch64-unknown-linux-musl.tar.gz",
+      "binary": "dbx"
+    },
+    "x86_64-unknown-linux-gnu": {
+      "artifact": "dbx-cli-x86_64-unknown-linux-gnu.tar.gz",
+      "binary": "dbx"
+    },
+    "x86_64-unknown-linux-musl": {
+      "artifact": "dbx-cli-x86_64-unknown-linux-musl.tar.gz",
+      "binary": "dbx"
+    },
+    "x86_64-pc-windows-msvc": {
+      "artifact": "dbx-cli-x86_64-pc-windows-msvc.zip",
+      "binary": "dbx.exe"
+    }
+  }
+}
