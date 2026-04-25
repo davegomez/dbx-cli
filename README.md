@@ -6,6 +6,16 @@ Agent-first command-line interface for Dropbox.
 
 All examples assume `dbx` is installed and available on `PATH`.
 
+## Install
+
+Install the prebuilt binary with npm:
+
+```bash
+npm install -g dbx-cli
+```
+
+The npm installer downloads the matching `dbx` release asset for your OS and CPU, verifies its `.sha256` checksum, and exposes the `dbx` command.
+
 ## Quick start
 
 Authenticate with Dropbox:
