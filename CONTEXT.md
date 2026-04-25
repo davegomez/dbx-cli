@@ -15,14 +15,17 @@
 
 ## Auth
 
-Use environment-injected credentials:
+Use OAuth login or environment-injected credentials:
 
 ```bash
+dbx auth login
+dbx auth status
+
 export DBX_CLI_TOKEN="<dropbox-access-token>"
-# or DROPBOX_ACCESS_TOKEN
+# or DBXCLI_TOKEN / DROPBOX_ACCESS_TOKEN
 ```
 
-Dry-run does not need a token.
+Stored OAuth credentials refresh automatically when possible. Dry-run does not need a token.
 
 ## Syntax
 

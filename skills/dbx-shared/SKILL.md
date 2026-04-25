@@ -24,10 +24,17 @@ dbx auth login
 
 # Static token (preferred for CI / agents)
 export DBX_CLI_TOKEN="..."
-# Fallback also accepted: DROPBOX_ACCESS_TOKEN
+# Fallbacks also accepted: DBXCLI_TOKEN, DROPBOX_ACCESS_TOKEN
+
+# Inspect stored auth without secrets
+dbx auth status
+
+# Remove stored credentials
+dbx auth logout --dry-run
+dbx auth logout
 ```
 
-Token resolution order: `DBX_CLI_TOKEN` → `DROPBOX_ACCESS_TOKEN` → `${HOME}/.config/dbx-cli/credentials.json` (override path with `DBX_CLI_CREDENTIALS_FILE`). Missing token → exit 30.
+Token resolution order: `DBX_CLI_TOKEN` → `DBXCLI_TOKEN` → `DROPBOX_ACCESS_TOKEN` → `${HOME}/.config/dbx-cli/credentials.json` (override path with `DBX_CLI_CREDENTIALS_FILE`). Missing token → exit 30.
 
 `dbx auth login` flags:
 
@@ -37,7 +44,7 @@ Token resolution order: `DBX_CLI_TOKEN` → `DROPBOX_ACCESS_TOKEN` → `${HOME}/
 | `--no-browser` | Skip browser launch; print the authorization plan |
 | `--json` | Emit the plan as JSON |
 
-Default scopes: `account_info.read`, `files.metadata.read`, `files.content.read`, `files.content.write`. Refresh token is stored but auto-refresh is not yet wired up — re-run `dbx auth login` on expiry.
+Default scopes: `account_info.read`, `files.metadata.read`, `files.content.read`, `files.content.write`. Stored credentials auto-refresh when expired and retry once after a Dropbox 401 when a refresh token exists. `dbx auth status` never prints access or refresh tokens.
 
 ## Global Flags
 
@@ -160,6 +167,7 @@ Rejected (exit 40):
 - Control characters (`\x00`–`\x1F`, `\x7F`) and dangerous Unicode (zero-width, bidi overrides, line/paragraph separators) — applies to every string.
 - Path-shaped strings containing `..`, `?`, `#`, or pre-encoded `%XX`.
 - `--json @file` paths that escape the current working directory.
+- `DBX_CLI_CREDENTIALS_FILE` paths containing traversal (`..`), query or fragment markers, percent-encoding, control characters, or dangerous Unicode.
 
 Build paths with raw UTF-8 string concatenation. No URL encoding, no trailing slashes. For root listing, pass `""`, not `"/"`.
 

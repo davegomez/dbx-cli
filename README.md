@@ -14,6 +14,12 @@ Authenticate with Dropbox:
 dbx auth login
 ```
 
+Check stored authentication status:
+
+```bash
+dbx auth status
+```
+
 Verify the authenticated account:
 
 ```bash
@@ -76,8 +82,51 @@ export DBX_CLI_TOKEN="<dropbox-access-token>"
 Credential precedence:
 
 1. `DBX_CLI_TOKEN`
-2. `DROPBOX_ACCESS_TOKEN`
-3. credentials from `dbx auth login`
+2. `DBXCLI_TOKEN`
+3. `DROPBOX_ACCESS_TOKEN`
+4. credentials from `dbx auth login`
+
+Stored credentials are refreshed automatically when expired and retried once after a Dropbox 401 response when a refresh token is available.
+
+### Check auth status
+
+Print structured authentication status without exposing access or refresh tokens:
+
+```bash
+dbx auth status
+```
+
+Example output:
+
+```json
+{
+  "authenticated": true,
+  "credentialsFileExists": true,
+  "credentialsPath": "/Users/you/.config/dbx-cli/credentials.json",
+  "accountId": "dbid:...",
+  "uid": "...",
+  "scopes": ["account_info.read", "files.metadata.read"],
+  "hasRefreshToken": true,
+  "expiresAtUnixSeconds": 1710000000,
+  "expired": false
+}
+```
+
+### Log out
+
+Remove stored credentials safely:
+
+```bash
+dbx auth logout
+```
+
+Preview logout without deleting credentials:
+
+```bash
+dbx auth logout --dry-run
+```
+
+`auth logout` only removes the credentials file. It does not revoke app authorization in Dropbox.
 
 ### Inspect auth without logging in
 
@@ -244,6 +293,9 @@ dbx files delete_v2 --json '{"path":"/old.txt"}'
 | `dbx auth login` | Start OAuth 2 PKCE browser login and store credentials. |
 | `dbx auth login --no-browser --json` | Print an authorisation plan only. |
 | `dbx auth login --client-id <ID>` | Use a specific Dropbox app key for this login. |
+| `dbx auth status` | Print structured auth status without secrets. |
+| `dbx auth logout` | Delete stored credentials. |
+| `dbx auth logout --dry-run` | Preview logout without deleting credentials. |
 
 ### Supported Dropbox operations
 
@@ -321,7 +373,7 @@ Override with:
 export DBX_CLI_CREDENTIALS_FILE="/path/to/credentials.json"
 ```
 
-The credentials file contains access and refresh tokens. Do not commit it or print it in logs.
+The credentials file contains access and refresh tokens. Do not commit it or print it in logs. Override paths are rejected if they contain traversal (`..`), query or fragment markers, percent-encoding, control characters, or dangerous Unicode.
 
 ### Dropbox scopes
 
@@ -375,6 +427,4 @@ Pass Dropbox paths as raw Dropbox paths, not URLs.
 
 ## Current limitations
 
-- Stored access tokens are used as stored; automatic refresh with the stored refresh token is not available yet.
-- `auth status` and `auth logout` are not available yet.
 - Supported Dropbox operations are listed by `dbx operations`.
