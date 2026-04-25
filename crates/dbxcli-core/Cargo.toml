@@ -1,0 +1,28 @@
+[package]
+name = "dbxcli-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Core Dropbox API registry, validation, and execution primitives for dbxcli"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+base64 = "0.22.1"
+getrandom = "0.4.2"
+reqwest = { version = "0.13.2", default-features = false, features = ["json", "rustls"] }
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.11.0"
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile = "3.27.0"
+tokio = { workspace = true, features = ["test-util"] }

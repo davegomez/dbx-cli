@@ -1,0 +1,29 @@
+[package]
+name = "dbxcli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Agent-first Dropbox CLI"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "dbx"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+dbxcli-core = { path = "../dbxcli-core" }
+serde_json.workspace = true
+tokio.workspace = true
+webbrowser = "1.2.1"
+
+[dev-dependencies]
+assert_cmd = "2.2.1"
+predicates = "3.1.4"
+tempfile = "3.27.0"
