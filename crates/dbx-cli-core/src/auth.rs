@@ -63,6 +63,29 @@ pub struct TokenResponse {
     pub account_id: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthStatus {
+    pub authenticated: bool,
+    pub credentials_file_exists: bool,
+    pub credentials_path: String,
+    pub account_id: Option<String>,
+    pub uid: Option<String>,
+    pub scopes: Vec<String>,
+    pub has_refresh_token: bool,
+    pub expires_at_unix_seconds: Option<u64>,
+    pub expired: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LogoutResult {
+    pub logged_out: bool,
+    pub dry_run: bool,
+    pub credentials_path: String,
+    pub credentials_file_existed: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct StoredCredentials {
@@ -245,6 +268,20 @@ pub fn build_token_request_body(
     ))
 }
 
+pub fn build_refresh_token_request_body(
+    client_id: &str,
+    refresh_token: &str,
+) -> Result<String, DbxError> {
+    validate_client_id(client_id)?;
+    reject_dangerous_chars(refresh_token, "refresh token")?;
+
+    Ok(format!(
+        "grant_type=refresh_token&refresh_token={}&client_id={}",
+        percent_encode(refresh_token),
+        percent_encode(client_id)
+    ))
+}
+
 #[cfg(not(coverage))]
 pub async fn exchange_authorization_code(
     client_id: &str,
@@ -264,13 +301,37 @@ async fn exchange_authorization_code_at(
     redirect_uri: &str,
 ) -> Result<TokenResponse, DbxError> {
     let body = build_token_request_body(client_id, code, code_verifier, redirect_uri)?;
+    submit_token_request(token_endpoint, body, "Dropbox token exchange failed").await
+}
+
+pub async fn refresh_access_token(
+    client_id: &str,
+    refresh_token: &str,
+) -> Result<TokenResponse, DbxError> {
+    refresh_access_token_at(TOKEN_ENDPOINT, client_id, refresh_token).await
+}
+
+async fn refresh_access_token_at(
+    token_endpoint: &str,
+    client_id: &str,
+    refresh_token: &str,
+) -> Result<TokenResponse, DbxError> {
+    let body = build_refresh_token_request_body(client_id, refresh_token)?;
+    submit_token_request(token_endpoint, body, "Dropbox token refresh failed").await
+}
+
+async fn submit_token_request(
+    token_endpoint: &str,
+    body: String,
+    error_message: &str,
+) -> Result<TokenResponse, DbxError> {
     let response = reqwest::Client::new()
         .post(token_endpoint)
         .header("Content-Type", "application/x-www-form-urlencoded")
         .body(body)
         .send()
         .await
-        .map_err(|e| DbxError::Other(anyhow::anyhow!("token exchange failed: {e}")))?;
+        .map_err(|e| DbxError::Other(anyhow::anyhow!("token request failed: {e}")))?;
     let status = response.status();
     let text = response
         .text()
@@ -285,7 +346,7 @@ async fn exchange_authorization_code_at(
             serde_json::from_str(&text).unwrap_or_else(|_| serde_json::json!({"raw": text}));
         Err(DbxError::Api {
             status: status.as_u16(),
-            message: "Dropbox token exchange failed".to_string(),
+            message: error_message.to_string(),
             body: Some(parsed),
         })
     }
@@ -320,10 +381,10 @@ pub fn credentials_from_token_response(
 
 pub fn default_credentials_path() -> Result<PathBuf, DbxError> {
     if let Ok(path) = std::env::var("DBX_CLI_CREDENTIALS_FILE") {
-        return Ok(PathBuf::from(path));
+        return validate_credentials_path(&path);
     }
     if let Ok(path) = std::env::var("DBXCLI_CREDENTIALS_FILE") {
-        return Ok(PathBuf::from(path));
+        return validate_credentials_path(&path);
     }
     let home = std::env::var_os("HOME").ok_or_else(|| {
         DbxError::Validation("HOME is not set; cannot locate credentials".to_string())
@@ -332,6 +393,30 @@ pub fn default_credentials_path() -> Result<PathBuf, DbxError> {
         .join(".config")
         .join("dbx-cli")
         .join("credentials.json"))
+}
+
+pub fn validate_credentials_path(path_str: &str) -> Result<PathBuf, DbxError> {
+    reject_dangerous_chars(path_str, "credentials path")?;
+    if path_str.contains('?') || path_str.contains('#') {
+        return Err(DbxError::Validation(
+            "credentials path must not contain query or fragment markers".to_string(),
+        ));
+    }
+    if path_str.contains('%') {
+        return Err(DbxError::Validation(
+            "credentials path must not be percent-encoded".to_string(),
+        ));
+    }
+    let path = PathBuf::from(path_str);
+    if path
+        .components()
+        .any(|component| matches!(component, std::path::Component::ParentDir))
+    {
+        return Err(DbxError::Validation(
+            "credentials path must not contain '..' traversal segments".to_string(),
+        ));
+    }
+    Ok(path)
 }
 
 pub fn store_credentials(path: &Path, credentials: &StoredCredentials) -> Result<(), DbxError> {
@@ -350,6 +435,113 @@ pub fn load_credentials(path: &Path) -> Result<StoredCredentials, DbxError> {
         .map_err(|e| DbxError::Auth(format!("failed to read stored credentials: {e}")))?;
     serde_json::from_str(&text)
         .map_err(|e| DbxError::Auth(format!("failed to parse stored credentials: {e}")))
+}
+
+pub fn credentials_expired(credentials: &StoredCredentials, now_unix_seconds: u64) -> Option<bool> {
+    credentials
+        .expires_at_unix_seconds
+        .map(|expires_at| expires_at <= now_unix_seconds)
+}
+
+pub fn auth_status(path: &Path, now_unix_seconds: u64) -> Result<AuthStatus, DbxError> {
+    let exists = path.exists();
+    if !exists {
+        return Ok(AuthStatus {
+            authenticated: false,
+            credentials_file_exists: false,
+            credentials_path: path.display().to_string(),
+            account_id: None,
+            uid: None,
+            scopes: Vec::new(),
+            has_refresh_token: false,
+            expires_at_unix_seconds: None,
+            expired: None,
+        });
+    }
+
+    let credentials = load_credentials(path)?;
+    let has_refresh_token = credentials.refresh_token.is_some();
+    let expired = credentials_expired(&credentials, now_unix_seconds);
+    Ok(AuthStatus {
+        authenticated: true,
+        credentials_file_exists: true,
+        credentials_path: path.display().to_string(),
+        account_id: credentials.account_id,
+        uid: credentials.uid,
+        scopes: credentials.scopes,
+        has_refresh_token,
+        expires_at_unix_seconds: credentials.expires_at_unix_seconds,
+        expired,
+    })
+}
+
+pub fn logout_credentials(path: &Path, dry_run: bool) -> Result<LogoutResult, DbxError> {
+    let existed = path.exists();
+    if existed {
+        load_credentials(path)?;
+    }
+    if existed && !dry_run {
+        std::fs::remove_file(path)
+            .map_err(|e| DbxError::Auth(format!("failed to remove stored credentials: {e}")))?;
+    }
+    Ok(LogoutResult {
+        logged_out: existed && !dry_run,
+        dry_run,
+        credentials_path: path.display().to_string(),
+        credentials_file_existed: existed,
+    })
+}
+
+pub async fn refresh_stored_credentials(
+    path: &Path,
+    now_unix_seconds: u64,
+) -> Result<StoredCredentials, DbxError> {
+    refresh_stored_credentials_at(path, TOKEN_ENDPOINT, now_unix_seconds).await
+}
+
+pub async fn refresh_stored_credentials_at(
+    path: &Path,
+    token_endpoint: &str,
+    now_unix_seconds: u64,
+) -> Result<StoredCredentials, DbxError> {
+    let credentials = load_credentials(path)?;
+    let refresh_token = credentials.refresh_token.as_deref().ok_or_else(|| {
+        DbxError::Auth(
+            "stored access token expired and no refresh token is available; run `dbx auth login`"
+                .to_string(),
+        )
+    })?;
+    let response =
+        refresh_access_token_at(token_endpoint, &credentials.client_id, refresh_token).await?;
+    let refreshed = refreshed_credentials(credentials, response, now_unix_seconds);
+    store_credentials(path, &refreshed)?;
+    Ok(refreshed)
+}
+
+pub fn refreshed_credentials(
+    existing: StoredCredentials,
+    response: TokenResponse,
+    now_unix_seconds: u64,
+) -> StoredCredentials {
+    let scopes = response.scope.as_deref().map(|scope| {
+        scope
+            .split_whitespace()
+            .map(ToOwned::to_owned)
+            .collect::<Vec<_>>()
+    });
+    let expires_at_unix_seconds = response
+        .expires_in
+        .map(|expires_in| now_unix_seconds.saturating_add(expires_in));
+
+    StoredCredentials {
+        client_id: existing.client_id,
+        access_token: response.access_token,
+        refresh_token: response.refresh_token.or(existing.refresh_token),
+        account_id: response.account_id.or(existing.account_id),
+        uid: response.uid.or(existing.uid),
+        scopes: scopes.unwrap_or(existing.scopes),
+        expires_at_unix_seconds,
+    }
 }
 
 pub fn current_unix_seconds() -> Result<u64, DbxError> {
@@ -870,6 +1062,118 @@ mod tests {
         let resolved = default_credentials_path().unwrap();
         unsafe { std::env::remove_var("DBX_CLI_CREDENTIALS_FILE") };
         assert_eq!(resolved, path);
+    }
+
+    #[test]
+    fn refresh_token_request_body_uses_public_client() {
+        let body = build_refresh_token_request_body("client123", "refresh token").unwrap();
+        assert!(body.contains("grant_type=refresh_token"));
+        assert!(body.contains("client_id=client123"));
+        assert!(body.contains("refresh_token=refresh%20token"));
+        assert!(!body.contains("client_secret"));
+    }
+
+    #[test]
+    fn validates_credentials_path_overrides() {
+        assert!(validate_credentials_path("/tmp/dbx-cli/credentials.json").is_ok());
+        for path in [
+            "../credentials.json",
+            "/tmp/../credentials.json",
+            "/tmp/creds.json?x=1",
+            "/tmp/creds%2Ejson",
+            "/tmp/bad\u{202E}.json",
+        ] {
+            assert!(
+                validate_credentials_path(path).is_err(),
+                "path should fail: {path}"
+            );
+        }
+    }
+
+    #[test]
+    fn auth_status_reports_safe_metadata_without_tokens() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("credentials.json");
+        let credentials = StoredCredentials {
+            client_id: "client".to_string(),
+            access_token: "access-secret".to_string(),
+            refresh_token: Some("refresh-secret".to_string()),
+            account_id: Some("acct".to_string()),
+            uid: Some("uid".to_string()),
+            scopes: vec!["account_info.read".to_string()],
+            expires_at_unix_seconds: Some(100),
+        };
+        store_credentials(&path, &credentials).unwrap();
+
+        let status = auth_status(&path, 101).unwrap();
+        let json = serde_json::to_string(&status).unwrap();
+
+        assert!(status.authenticated);
+        assert!(status.has_refresh_token);
+        assert_eq!(status.expired, Some(true));
+        assert!(!json.contains("access-secret"));
+        assert!(!json.contains("refresh-secret"));
+    }
+
+    #[test]
+    fn logout_credentials_supports_dry_run_and_delete() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("credentials.json");
+        let credentials = StoredCredentials {
+            client_id: "client".to_string(),
+            access_token: "access".to_string(),
+            refresh_token: Some("refresh".to_string()),
+            account_id: None,
+            uid: None,
+            scopes: Vec::new(),
+            expires_at_unix_seconds: None,
+        };
+        store_credentials(&path, &credentials).unwrap();
+
+        let dry_run = logout_credentials(&path, true).unwrap();
+        assert!(!dry_run.logged_out);
+        assert!(dry_run.credentials_file_existed);
+        assert!(path.exists());
+
+        let result = logout_credentials(&path, false).unwrap();
+        assert!(result.logged_out);
+        assert!(!path.exists());
+    }
+
+    #[tokio::test]
+    async fn refresh_stored_credentials_updates_access_token_and_preserves_refresh_token() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("credentials.json");
+        let credentials = StoredCredentials {
+            client_id: "client123".to_string(),
+            access_token: "old-access".to_string(),
+            refresh_token: Some("refresh-token".to_string()),
+            account_id: Some("acct".to_string()),
+            uid: Some("uid".to_string()),
+            scopes: vec!["old.scope".to_string()],
+            expires_at_unix_seconds: Some(100),
+        };
+        store_credentials(&path, &credentials).unwrap();
+        let (url, request_rx) = spawn_token_server(
+            "200 OK",
+            r#"{"access_token":"new-access","token_type":"bearer","expires_in":3600,"scope":"files.metadata.read"}"#,
+        );
+
+        let refreshed = refresh_stored_credentials_at(&path, &url, 1000)
+            .await
+            .unwrap();
+
+        assert_eq!(refreshed.access_token, "new-access");
+        assert_eq!(refreshed.refresh_token.as_deref(), Some("refresh-token"));
+        assert_eq!(refreshed.expires_at_unix_seconds, Some(4600));
+        assert_eq!(refreshed.scopes, vec!["files.metadata.read"]);
+        let stored = load_credentials(&path).unwrap();
+        assert_eq!(stored.access_token, "new-access");
+        let request = request_rx.recv().unwrap();
+        assert!(request.contains("grant_type=refresh_token"));
+        assert!(request.contains("refresh_token=refresh-token"));
+        assert!(request.contains("client_id=client123"));
+        assert!(!request.contains("client_secret"));
     }
 
     #[test]

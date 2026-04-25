@@ -1,27 +1,83 @@
+use crate::auth::{
+    credentials_expired, current_unix_seconds, default_credentials_path, load_credentials,
+    refresh_stored_credentials, StoredCredentials,
+};
 use crate::error::DbxError;
 use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
+use std::path::PathBuf;
 use std::sync::OnceLock;
 
 const CONNECT_TIMEOUT_SECS: u64 = 10;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AccessToken {
+    pub value: String,
+    pub refresh_credentials_path: Option<PathBuf>,
+}
+
 pub fn access_token_from_env() -> Result<String, DbxError> {
-    if let Ok(token) = std::env::var("DBX_CLI_TOKEN") {
+    if let Some(token) = token_from_environment() {
         return Ok(token);
     }
-    if let Ok(token) = std::env::var("DBXCLI_TOKEN") {
-        return Ok(token);
+    let path = default_credentials_path()?;
+    let credentials = load_credentials(&path).map_err(|_| missing_auth_error())?;
+    Ok(credentials.access_token)
+}
+
+pub async fn access_token_for_request() -> Result<AccessToken, DbxError> {
+    if let Some(token) = token_from_environment() {
+        return Ok(AccessToken {
+            value: token,
+            refresh_credentials_path: None,
+        });
     }
-    if let Ok(token) = std::env::var("DROPBOX_ACCESS_TOKEN") {
-        return Ok(token);
-    }
-    if let Ok(path) = crate::auth::default_credentials_path() {
-        if let Ok(credentials) = crate::auth::load_credentials(&path) {
-            return Ok(credentials.access_token);
+
+    let path = default_credentials_path()?;
+    let credentials = load_credentials(&path).map_err(|_| missing_auth_error())?;
+    access_token_from_stored_credentials(path, credentials).await
+}
+
+pub async fn refresh_access_token_for_retry(path: PathBuf) -> Result<AccessToken, DbxError> {
+    let refreshed = refresh_stored_credentials(&path, current_unix_seconds()?).await?;
+    Ok(AccessToken {
+        value: refreshed.access_token,
+        refresh_credentials_path: Some(path),
+    })
+}
+
+async fn access_token_from_stored_credentials(
+    path: PathBuf,
+    credentials: StoredCredentials,
+) -> Result<AccessToken, DbxError> {
+    if credentials_expired(&credentials, current_unix_seconds()?).unwrap_or(false) {
+        if credentials.refresh_token.is_none() {
+            return Err(DbxError::Auth(
+                "stored access token expired and no refresh token is available; run `dbx auth login`"
+                    .to_string(),
+            ));
         }
+        let refreshed = refresh_stored_credentials(&path, current_unix_seconds()?).await?;
+        return Ok(AccessToken {
+            value: refreshed.access_token,
+            refresh_credentials_path: Some(path),
+        });
     }
-    Err(DbxError::Auth(
-        "set DBX_CLI_TOKEN or DROPBOX_ACCESS_TOKEN, or run `dbx auth login`".to_string(),
-    ))
+
+    Ok(AccessToken {
+        value: credentials.access_token,
+        refresh_credentials_path: credentials.refresh_token.map(|_| path),
+    })
+}
+
+fn token_from_environment() -> Option<String> {
+    std::env::var("DBX_CLI_TOKEN")
+        .or_else(|_| std::env::var("DBXCLI_TOKEN"))
+        .or_else(|_| std::env::var("DROPBOX_ACCESS_TOKEN"))
+        .ok()
+}
+
+fn missing_auth_error() -> DbxError {
+    DbxError::Auth("set DBX_CLI_TOKEN or DROPBOX_ACCESS_TOKEN, or run `dbx auth login`".to_string())
 }
 
 fn build_client_inner() -> Result<reqwest::Client, String> {

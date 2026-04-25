@@ -21,6 +21,22 @@ fn stdout_json(command: &mut Command) -> Value {
     serde_json::from_slice(&output).expect("stdout should be JSON")
 }
 
+fn write_credentials(path: &std::path::Path) {
+    std::fs::write(
+        path,
+        r#"{
+            "clientId":"client",
+            "accessToken":"access-secret",
+            "refreshToken":"refresh-secret",
+            "accountId":"acct",
+            "uid":"uid",
+            "scopes":["account_info.read"],
+            "expiresAtUnixSeconds":1
+        }"#,
+    )
+    .unwrap();
+}
+
 #[test]
 fn operations_prints_registry_json() {
     let json = stdout_json(dbx().arg("operations"));
@@ -63,6 +79,67 @@ fn auth_login_no_browser_prints_plan_without_credentials() {
         .unwrap()
         .contains("https://www.dropbox.com/oauth2/authorize"));
     assert!(!json.to_string().contains("verifier"));
+}
+
+#[test]
+fn auth_status_prints_metadata_without_secrets() {
+    let dir = tempdir().unwrap();
+    let credentials = dir.path().join("credentials.json");
+    write_credentials(&credentials);
+
+    let json = stdout_json(
+        dbx()
+            .env("DBX_CLI_CREDENTIALS_FILE", &credentials)
+            .args(["auth", "status"]),
+    );
+
+    assert_eq!(json["authenticated"], true);
+    assert_eq!(json["hasRefreshToken"], true);
+    assert_eq!(json["accountId"], "acct");
+    assert_eq!(json["expired"], true);
+    assert!(!json.to_string().contains("access-secret"));
+    assert!(!json.to_string().contains("refresh-secret"));
+}
+
+#[test]
+fn auth_status_reports_missing_credentials_as_json() {
+    let dir = tempdir().unwrap();
+    let credentials = dir.path().join("missing.json");
+
+    let json = stdout_json(
+        dbx()
+            .env("DBX_CLI_CREDENTIALS_FILE", &credentials)
+            .args(["auth", "status"]),
+    );
+
+    assert_eq!(json["authenticated"], false);
+    assert_eq!(json["credentialsFileExists"], false);
+}
+
+#[test]
+fn auth_logout_supports_dry_run_and_delete() {
+    let dir = tempdir().unwrap();
+    let credentials = dir.path().join("credentials.json");
+    write_credentials(&credentials);
+
+    let dry_run = stdout_json(dbx().env("DBX_CLI_CREDENTIALS_FILE", &credentials).args([
+        "auth",
+        "logout",
+        "--dry-run",
+    ]));
+
+    assert_eq!(dry_run["dryRun"], true);
+    assert_eq!(dry_run["credentialsFileExisted"], true);
+    assert!(credentials.exists());
+
+    let deleted = stdout_json(
+        dbx()
+            .env("DBX_CLI_CREDENTIALS_FILE", &credentials)
+            .args(["auth", "logout"]),
+    );
+
+    assert_eq!(deleted["loggedOut"], true);
+    assert!(!credentials.exists());
 }
 
 #[test]

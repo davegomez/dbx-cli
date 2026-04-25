@@ -4,9 +4,9 @@ use clap::{Arg, ArgAction, Command};
 #[cfg(not(coverage))]
 use dbx_cli_core::auth::exchange_authorization_code;
 use dbx_cli_core::auth::{
-    build_login_plan, build_login_session, credentials_from_token_response, current_unix_seconds,
-    default_credentials_path, parse_callback_request_line, store_credentials,
-    verify_callback_state, CallbackQuery,
+    auth_status, build_login_plan, build_login_session, credentials_from_token_response,
+    current_unix_seconds, default_credentials_path, logout_credentials,
+    parse_callback_request_line, store_credentials, verify_callback_state, CallbackQuery,
 };
 use dbx_cli_core::executor::{execute, ExecuteOptions};
 use dbx_cli_core::operations::{find_operation, operation_tree};
@@ -43,12 +43,12 @@ async fn run() -> Result<(), DbxError> {
             print_json_pretty(&registry_schema())?;
             Ok(())
         }
-        Some(("auth", auth_matches)) => {
-            let Some(("login", login_matches)) = auth_matches.subcommand() else {
-                return Err(DbxError::Validation("missing auth command".to_string()));
-            };
-            run_auth_login(login_matches).await
-        }
+        Some(("auth", auth_matches)) => match auth_matches.subcommand() {
+            Some(("login", login_matches)) => run_auth_login(login_matches).await,
+            Some(("status", _)) => run_auth_status(),
+            Some(("logout", logout_matches)) => run_auth_logout(logout_matches),
+            _ => Err(DbxError::Validation("missing auth command".to_string())),
+        },
         Some((resource, resource_matches)) => {
             let Some((method, method_matches)) = resource_matches.subcommand() else {
                 return Err(DbxError::Validation(format!(
@@ -133,6 +133,17 @@ fn auth_command() -> Command {
                         .action(ArgAction::SetTrue),
                 ),
         )
+        .subcommand(Command::new("status").about("Print structured authentication status"))
+        .subcommand(
+            Command::new("logout")
+                .about("Remove stored Dropbox credentials")
+                .arg(
+                    Arg::new("dry-run")
+                        .long("dry-run")
+                        .help("Print logout plan without deleting credentials")
+                        .action(ArgAction::SetTrue),
+                ),
+        )
 }
 
 fn operation_command(operation: &dbx_cli_core::operations::Operation) -> Command {
@@ -195,6 +206,22 @@ async fn run_auth_login(matches: &clap::ArgMatches) -> Result<(), DbxError> {
     }
 
     run_auth_login_in_browser(client_id_arg).await
+}
+
+fn run_auth_status() -> Result<(), DbxError> {
+    let credentials_path = default_credentials_path()?;
+    let status = auth_status(&credentials_path, current_unix_seconds()?)?;
+    let output = serde_json::to_value(status)
+        .map_err(|e| DbxError::Other(anyhow::anyhow!("failed to serialize auth status: {e}")))?;
+    print_json_pretty(&output)
+}
+
+fn run_auth_logout(matches: &clap::ArgMatches) -> Result<(), DbxError> {
+    let credentials_path = default_credentials_path()?;
+    let result = logout_credentials(&credentials_path, matches.get_flag("dry-run"))?;
+    let output = serde_json::to_value(result)
+        .map_err(|e| DbxError::Other(anyhow::anyhow!("failed to serialize logout result: {e}")))?;
+    print_json_pretty(&output)
 }
 
 #[cfg(coverage)]
@@ -405,13 +432,15 @@ mod tests {
     }
 
     #[test]
-    fn cli_exposes_auth_login_flags() {
+    fn cli_exposes_auth_commands() {
         let cmd = build_cli();
-        let login = cmd
-            .find_subcommand("auth")
-            .and_then(|auth| auth.find_subcommand("login"))
+        let auth = cmd.find_subcommand("auth").expect("auth command exists");
+        let login = auth
+            .find_subcommand("login")
             .expect("auth login command exists");
 
+        assert!(auth.find_subcommand("status").is_some());
+        assert!(auth.find_subcommand("logout").is_some());
         for flag in ["client-id", "no-browser", "json"] {
             assert!(
                 login.get_arguments().any(|arg| arg.get_id() == flag),
@@ -444,6 +473,8 @@ mod tests {
         assert_parses(&["dbx", "auth", "login"]);
         assert_parses(&["dbx", "auth", "login", "--no-browser", "--json"]);
         assert_parses(&["dbx", "auth", "login", "--client-id", "app-key"]);
+        assert_parses(&["dbx", "auth", "status"]);
+        assert_parses(&["dbx", "auth", "logout", "--dry-run"]);
         assert_parses(&["dbx", "users", "get_current_account"]);
         assert_parses(&[
             "dbx",

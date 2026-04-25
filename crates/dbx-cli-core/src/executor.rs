@@ -1,4 +1,6 @@
-use crate::client::{access_token_from_env, shared_client};
+use crate::client::{
+    access_token_for_request, refresh_access_token_for_retry, shared_client, AccessToken,
+};
 use crate::error::DbxError;
 use crate::fields::select_fields;
 use crate::operations::{find_operation_by_dotted_name, HttpMethod, Operation};
@@ -69,8 +71,8 @@ where
         return Ok(vec![request_plan(&operation, &options.json_body)]);
     }
 
-    let token = if operation.auth_required {
-        Some(access_token_from_env()?)
+    let mut token = if operation.auth_required {
+        Some(access_token_for_request().await?)
     } else {
         None
     };
@@ -85,7 +87,13 @@ where
     };
 
     for _ in 0..max_pages {
-        let response = send(current_operation.clone(), body.clone(), token.clone()).await?;
+        let response = send_with_optional_refresh(
+            &mut send,
+            current_operation.clone(),
+            body.clone(),
+            &mut token,
+        )
+        .await?;
         let shaped = if let Some(fields) = &options.fields {
             select_fields(&response, fields)
         } else {
@@ -118,6 +126,62 @@ where
     }
 
     Ok(pages)
+}
+
+async fn send_with_optional_refresh<S, Fut>(
+    send: &mut S,
+    operation: Operation,
+    body: Value,
+    token: &mut Option<AccessToken>,
+) -> Result<Value, DbxError>
+where
+    S: FnMut(Operation, Value, Option<String>) -> Fut,
+    Fut: Future<Output = Result<Value, DbxError>>,
+{
+    send_with_refresh(send, operation, body, token, &mut |path| {
+        refresh_access_token_for_retry(path)
+    })
+    .await
+}
+
+async fn send_with_refresh<S, Fut, R, RefreshFut>(
+    send: &mut S,
+    operation: Operation,
+    body: Value,
+    token: &mut Option<AccessToken>,
+    refresh: &mut R,
+) -> Result<Value, DbxError>
+where
+    S: FnMut(Operation, Value, Option<String>) -> Fut,
+    Fut: Future<Output = Result<Value, DbxError>>,
+    R: FnMut(std::path::PathBuf) -> RefreshFut,
+    RefreshFut: Future<Output = Result<AccessToken, DbxError>>,
+{
+    let token_value = token.as_ref().map(|token| token.value.clone());
+    match send(operation.clone(), body.clone(), token_value).await {
+        Ok(response) => Ok(response),
+        Err(DbxError::Api {
+            status,
+            message,
+            body: error_body,
+        }) if status == 401 => {
+            let Some(path) = token
+                .as_ref()
+                .and_then(|token| token.refresh_credentials_path.clone())
+            else {
+                return Err(DbxError::Api {
+                    status,
+                    message,
+                    body: error_body,
+                });
+            };
+            let refreshed = refresh(path).await?;
+            let refreshed_value = refreshed.value.clone();
+            *token = Some(refreshed);
+            send(operation, body, Some(refreshed_value)).await
+        }
+        Err(err) => Err(err),
+    }
 }
 
 fn request_plan(operation: &Operation, body: &Value) -> Value {
@@ -211,6 +275,7 @@ mod tests {
     use std::collections::VecDeque;
     use std::io::{BufRead, BufReader, Read, Write};
     use std::net::TcpListener;
+    use std::path::PathBuf;
     use std::rc::Rc;
     use std::sync::mpsc;
 
@@ -602,5 +667,66 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(err.exit_code(), DbxError::EXIT_CODE_API);
+    }
+
+    #[tokio::test]
+    async fn send_refreshes_once_after_unauthorized_with_stored_credentials() {
+        let operation = find_operation_by_dotted_name("files.get_metadata").unwrap();
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        let refresh_paths = Rc::new(RefCell::new(Vec::new()));
+        let credentials_path = PathBuf::from("/tmp/dbx-cli-test-credentials.json");
+        let mut token = Some(AccessToken {
+            value: "old-access".to_string(),
+            refresh_credentials_path: Some(credentials_path.clone()),
+        });
+
+        let response = send_with_refresh(
+            &mut {
+                let calls = Rc::clone(&calls);
+                move |_operation, _body, token| {
+                    calls.borrow_mut().push(token.clone());
+                    async move {
+                        if token.as_deref() == Some("old-access") {
+                            Err(DbxError::Api {
+                                status: 401,
+                                message: "expired".to_string(),
+                                body: None,
+                            })
+                        } else {
+                            Ok(json!({"ok": true}))
+                        }
+                    }
+                }
+            },
+            operation,
+            json!({"path": "/README.md"}),
+            &mut token,
+            &mut {
+                let refresh_paths = Rc::clone(&refresh_paths);
+                move |path| {
+                    refresh_paths.borrow_mut().push(path);
+                    async {
+                        Ok(AccessToken {
+                            value: "new-access".to_string(),
+                            refresh_credentials_path: Some(PathBuf::from(
+                                "/tmp/dbx-cli-test-credentials.json",
+                            )),
+                        })
+                    }
+                }
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(response, json!({"ok": true}));
+        assert_eq!(
+            calls.borrow().as_slice(),
+            [
+                Some("old-access".to_string()),
+                Some("new-access".to_string())
+            ]
+        );
+        assert_eq!(refresh_paths.borrow().as_slice(), [credentials_path]);
     }
 }
