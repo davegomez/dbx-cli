@@ -23,17 +23,17 @@ The `dbx` binary must be on `$PATH`. See the project README for install options.
 dbx auth login
 
 # Static token (preferred for CI / agents)
-export DBXCLI_TOKEN="..."
+export DBX_CLI_TOKEN="..."
 # Fallback also accepted: DROPBOX_ACCESS_TOKEN
 ```
 
-Token resolution order: `DBXCLI_TOKEN` → `DROPBOX_ACCESS_TOKEN` → `${HOME}/.config/dbxcli/credentials.json` (override path with `DBXCLI_CREDENTIALS_FILE`). Missing token → exit 30.
+Token resolution order: `DBX_CLI_TOKEN` → `DROPBOX_ACCESS_TOKEN` → `${HOME}/.config/dbx-cli/credentials.json` (override path with `DBX_CLI_CREDENTIALS_FILE`). Missing token → exit 30.
 
 `dbx auth login` flags:
 
 | Flag | Description |
 |------|-------------|
-| `--client-id <ID>` | Override built-in shared app key (or `DBXCLI_CLIENT_ID` env) |
+| `--client-id <ID>` | Override built-in shared app key (or `DBX_CLI_CLIENT_ID` env) |
 | `--no-browser` | Skip browser launch; print the authorization plan |
 | `--json` | Emit the plan as JSON |
 

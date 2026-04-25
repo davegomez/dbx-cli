@@ -87,7 +87,9 @@ pub struct LoginSuccess {
 }
 
 pub fn resolve_client_id(flag_client_id: Option<&str>) -> Result<String, DbxError> {
-    let env_client_id = std::env::var("DBXCLI_CLIENT_ID").ok();
+    let env_client_id = std::env::var("DBX_CLI_CLIENT_ID")
+        .or_else(|_| std::env::var("DBXCLI_CLIENT_ID"))
+        .ok();
     resolve_client_id_from_sources(flag_client_id, env_client_id.as_deref())
 }
 
@@ -317,6 +319,9 @@ pub fn credentials_from_token_response(
 }
 
 pub fn default_credentials_path() -> Result<PathBuf, DbxError> {
+    if let Ok(path) = std::env::var("DBX_CLI_CREDENTIALS_FILE") {
+        return Ok(PathBuf::from(path));
+    }
     if let Ok(path) = std::env::var("DBXCLI_CREDENTIALS_FILE") {
         return Ok(PathBuf::from(path));
     }
@@ -325,7 +330,7 @@ pub fn default_credentials_path() -> Result<PathBuf, DbxError> {
     })?;
     Ok(PathBuf::from(home)
         .join(".config")
-        .join("dbxcli")
+        .join("dbx-cli")
         .join("credentials.json"))
 }
 
@@ -861,9 +866,9 @@ mod tests {
     fn default_credentials_path_uses_override_env() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("credentials.json");
-        unsafe { std::env::set_var("DBXCLI_CREDENTIALS_FILE", &path) };
+        unsafe { std::env::set_var("DBX_CLI_CREDENTIALS_FILE", &path) };
         let resolved = default_credentials_path().unwrap();
-        unsafe { std::env::remove_var("DBXCLI_CREDENTIALS_FILE") };
+        unsafe { std::env::remove_var("DBX_CLI_CREDENTIALS_FILE") };
         assert_eq!(resolved, path);
     }
 

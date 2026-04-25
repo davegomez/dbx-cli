@@ -6,11 +6,12 @@ use tempfile::tempdir;
 fn dbx() -> Command {
     let mut command = Command::cargo_bin("dbx").expect("dbx binary should build");
     command
+        .env_remove("DBX_CLI_TOKEN")
         .env_remove("DBXCLI_TOKEN")
         .env_remove("DROPBOX_ACCESS_TOKEN")
         .env(
-            "DBXCLI_CREDENTIALS_FILE",
-            "/tmp/dbxcli-test-missing-credentials.json",
+            "DBX_CLI_CREDENTIALS_FILE",
+            "/tmp/dbx-cli-test-missing-credentials.json",
         );
     command
 }
@@ -24,7 +25,7 @@ fn stdout_json(command: &mut Command) -> Value {
 fn operations_prints_registry_json() {
     let json = stdout_json(dbx().arg("operations"));
 
-    assert_eq!(json["name"], "dbxcli");
+    assert_eq!(json["name"], "dbx-cli");
     assert_eq!(json["operationCount"], 5);
     assert!(json["resources"]
         .as_array()
@@ -37,7 +38,7 @@ fn operations_prints_registry_json() {
 fn schema_prints_registry_when_no_operation_is_given() {
     let json = stdout_json(dbx().arg("schema"));
 
-    assert_eq!(json["name"], "dbxcli");
+    assert_eq!(json["name"], "dbx-cli");
     assert!(json["resources"].is_array());
 }
 

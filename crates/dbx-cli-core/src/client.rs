@@ -5,6 +5,9 @@ use std::sync::OnceLock;
 const CONNECT_TIMEOUT_SECS: u64 = 10;
 
 pub fn access_token_from_env() -> Result<String, DbxError> {
+    if let Ok(token) = std::env::var("DBX_CLI_TOKEN") {
+        return Ok(token);
+    }
     if let Ok(token) = std::env::var("DBXCLI_TOKEN") {
         return Ok(token);
     }
@@ -17,7 +20,7 @@ pub fn access_token_from_env() -> Result<String, DbxError> {
         }
     }
     Err(DbxError::Auth(
-        "set DBXCLI_TOKEN or DROPBOX_ACCESS_TOKEN, or run `dbx auth login`".to_string(),
+        "set DBX_CLI_TOKEN or DROPBOX_ACCESS_TOKEN, or run `dbx auth login`".to_string(),
     ))
 }
 
@@ -25,7 +28,7 @@ fn build_client_inner() -> Result<reqwest::Client, String> {
     let mut headers = HeaderMap::new();
     headers.insert(
         USER_AGENT,
-        HeaderValue::from_str(&format!("dbxcli/{}", env!("CARGO_PKG_VERSION")))
+        HeaderValue::from_str(&format!("dbx-cli/{}", env!("CARGO_PKG_VERSION")))
             .map_err(|e| e.to_string())?,
     );
 
@@ -65,16 +68,19 @@ mod tests {
     }
 
     fn clear_auth_env() {
+        remove_env("DBX_CLI_TOKEN");
         remove_env("DBXCLI_TOKEN");
         remove_env("DROPBOX_ACCESS_TOKEN");
+        remove_env("DBX_CLI_CREDENTIALS_FILE");
         remove_env("DBXCLI_CREDENTIALS_FILE");
     }
 
     #[test]
-    fn access_token_prefers_dbxcli_token() {
+    fn access_token_prefers_dbx_cli_token() {
         let _guard = env_lock().lock().unwrap();
         clear_auth_env();
-        set_env("DBXCLI_TOKEN", "primary");
+        set_env("DBX_CLI_TOKEN", "primary");
+        set_env("DBXCLI_TOKEN", "legacy");
         set_env("DROPBOX_ACCESS_TOKEN", "fallback");
 
         assert_eq!(access_token_from_env().unwrap(), "primary");
@@ -109,7 +115,7 @@ mod tests {
             expires_at_unix_seconds: Some(123),
         };
         store_credentials(&path, &credentials).unwrap();
-        set_env("DBXCLI_CREDENTIALS_FILE", path.to_str().unwrap());
+        set_env("DBX_CLI_CREDENTIALS_FILE", path.to_str().unwrap());
 
         assert_eq!(access_token_from_env().unwrap(), "stored");
 
@@ -122,7 +128,7 @@ mod tests {
         clear_auth_env();
         let dir = tempdir().unwrap();
         let path = dir.path().join("missing.json");
-        set_env("DBXCLI_CREDENTIALS_FILE", path.to_str().unwrap());
+        set_env("DBX_CLI_CREDENTIALS_FILE", path.to_str().unwrap());
 
         let err = access_token_from_env().unwrap_err();
 

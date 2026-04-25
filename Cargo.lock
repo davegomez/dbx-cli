@@ -296,13 +296,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "dbxcli"
+name = "dbx-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
  "clap",
- "dbxcli-core",
+ "dbx-cli-core",
  "predicates",
  "serde_json",
  "tempfile",
@@ -311,7 +311,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "dbxcli-core"
+name = "dbx-cli-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",

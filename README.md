@@ -1,4 +1,4 @@
-# dbxcli (`dbx`)
+# dbx-cli (`dbx`)
 
 Agent-first command-line interface for Dropbox.
 
@@ -56,7 +56,7 @@ Successful login prints JSON like:
 {
   "authenticated": true,
   "accountId": "dbid:...",
-  "credentialsPath": "/Users/you/.config/dbxcli/credentials.json",
+  "credentialsPath": "/Users/you/.config/dbx-cli/credentials.json",
   "hasRefreshToken": true,
   "scopes": ["account_info.read", "files.content.read", "files.content.write", "files.metadata.read"],
   "uid": "..."
@@ -68,14 +68,14 @@ Successful login prints JSON like:
 For CI, scripts, or managed agent environments:
 
 ```bash
-export DBXCLI_TOKEN="<dropbox-access-token>"
+export DBX_CLI_TOKEN="<dropbox-access-token>"
 ```
 
 `DROPBOX_ACCESS_TOKEN` is also supported.
 
 Credential precedence:
 
-1. `DBXCLI_TOKEN`
+1. `DBX_CLI_TOKEN`
 2. `DROPBOX_ACCESS_TOKEN`
 3. credentials from `dbx auth login`
 
@@ -291,14 +291,14 @@ dbx auth login --client-id <app-key>
 Override with environment:
 
 ```bash
-export DBXCLI_CLIENT_ID="<app-key>"
+export DBX_CLI_CLIENT_ID="<app-key>"
 dbx auth login
 ```
 
 Client ID precedence:
 
 1. `--client-id <ID>`
-2. `DBXCLI_CLIENT_ID`
+2. `DBX_CLI_CLIENT_ID`
 3. built-in shared app key
 
 If you use your own Dropbox app, register this redirect URI exactly:
@@ -312,13 +312,13 @@ http://127.0.0.1:53682/oauth/callback
 Default credentials path:
 
 ```text
-~/.config/dbxcli/credentials.json
+~/.config/dbx-cli/credentials.json
 ```
 
 Override with:
 
 ```bash
-export DBXCLI_CREDENTIALS_FILE="/path/to/credentials.json"
+export DBX_CLI_CREDENTIALS_FILE="/path/to/credentials.json"
 ```
 
 The credentials file contains access and refresh tokens. Do not commit it or print it in logs.

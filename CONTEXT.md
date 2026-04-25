@@ -1,4 +1,4 @@
-# dbxcli Agent Context
+# dbx-cli Agent Context
 
 `dbx` is an agent-first Dropbox CLI.
 
@@ -18,7 +18,7 @@
 Use environment-injected credentials:
 
 ```bash
-export DBXCLI_TOKEN="<dropbox-access-token>"
+export DBX_CLI_TOKEN="<dropbox-access-token>"
 # or DROPBOX_ACCESS_TOKEN
 ```
 

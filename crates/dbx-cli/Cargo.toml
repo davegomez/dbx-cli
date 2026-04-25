@@ -1,5 +1,5 @@
 [package]
-name = "dbxcli"
+name = "dbx-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -18,7 +18,7 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
-dbxcli-core = { path = "../dbxcli-core" }
+dbx-cli-core = { path = "../dbx-cli-core" }
 serde_json.workspace = true
 tokio.workspace = true
 webbrowser = "1.2.1"

@@ -2,17 +2,17 @@
 
 use clap::{Arg, ArgAction, Command};
 #[cfg(not(coverage))]
-use dbxcli_core::auth::exchange_authorization_code;
-use dbxcli_core::auth::{
+use dbx_cli_core::auth::exchange_authorization_code;
+use dbx_cli_core::auth::{
     build_login_plan, build_login_session, credentials_from_token_response, current_unix_seconds,
     default_credentials_path, parse_callback_request_line, store_credentials,
     verify_callback_state, CallbackQuery,
 };
-use dbxcli_core::executor::{execute, ExecuteOptions};
-use dbxcli_core::operations::{find_operation, operation_tree};
-use dbxcli_core::schema::{operation_schema, registry_schema};
-use dbxcli_core::validate::{sanitize_for_terminal, validate_safe_file_path};
-use dbxcli_core::DbxError;
+use dbx_cli_core::executor::{execute, ExecuteOptions};
+use dbx_cli_core::operations::{find_operation, operation_tree};
+use dbx_cli_core::schema::{operation_schema, registry_schema};
+use dbx_cli_core::validate::{sanitize_for_terminal, validate_safe_file_path};
+use dbx_cli_core::DbxError;
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
@@ -118,7 +118,7 @@ fn auth_command() -> Command {
                     Arg::new("client-id")
                         .long("client-id")
                         .value_name("ID")
-                        .help("Override Dropbox app client id; falls back to DBXCLI_CLIENT_ID and built-in shared key"),
+                        .help("Override Dropbox app client id; falls back to DBX_CLI_CLIENT_ID and built-in shared key"),
                 )
                 .arg(
                     Arg::new("no-browser")
@@ -135,7 +135,7 @@ fn auth_command() -> Command {
         )
 }
 
-fn operation_command(operation: &dbxcli_core::operations::Operation) -> Command {
+fn operation_command(operation: &dbx_cli_core::operations::Operation) -> Command {
     Command::new(operation.method)
         .about(operation.description)
         .arg(
@@ -230,7 +230,7 @@ async fn run_auth_login_in_browser(client_id_arg: Option<&str>) -> Result<(), Db
     let credentials_path = default_credentials_path()?;
     store_credentials(&credentials_path, &credentials)?;
 
-    let success = dbxcli_core::auth::LoginSuccess {
+    let success = dbx_cli_core::auth::LoginSuccess {
         authenticated: true,
         account_id: credentials.account_id.clone(),
         uid: credentials.uid.clone(),
@@ -268,10 +268,10 @@ fn wait_for_oauth_callback(expected_state: &str) -> Result<CallbackQuery, DbxErr
                 let callback = parse_callback_request_line(first_line.trim_end())?;
                 let response = match verify_callback_state(&callback, expected_state) {
                     Ok(()) => {
-                        "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\ndbxcli login complete. You can close this browser tab.\n"
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\ndbx-cli login complete. You can close this browser tab.\n"
                     }
                     Err(_) => {
-                        "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\ndbxcli login failed: state mismatch. Return to your terminal.\n"
+                        "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\ndbx-cli login failed: state mismatch. Return to your terminal.\n"
                     }
                 };
                 stream.write_all(response.as_bytes()).map_err(|e| {
@@ -376,7 +376,7 @@ fn print_error(err: &DbxError) {
 mod tests {
     use super::*;
     use clap::error::ErrorKind;
-    use dbxcli_core::operations::operations;
+    use dbx_cli_core::operations::operations;
     use std::net::TcpStream;
     use std::sync::{Mutex, OnceLock};
 

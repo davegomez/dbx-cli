@@ -44,7 +44,7 @@ dbx users get_current_account --fields account_id
 - Before destructive ops, to assert the token belongs to the expected account.
 - As a low-cost token-validity probe (faster than a `list_folder`).
 
-A 401 means the token is missing, expired, or revoked — re-run `dbx auth login` or refresh `DBXCLI_TOKEN`.
+A 401 means the token is missing, expired, or revoked — re-run `dbx auth login` or refresh `DBX_CLI_TOKEN`.
 
 ## Discovering Commands
 

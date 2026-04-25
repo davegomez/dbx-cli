@@ -13,12 +13,12 @@ Use Cargo only:
 ```bash
 cargo fmt
 cargo test
-cargo run -p dbxcli -- --help
+cargo run -p dbx-cli -- --help
 ```
 
 ## Design constraints
 
-- Keep Dropbox API knowledge in `crates/dbxcli-core`.
+- Keep Dropbox API knowledge in `crates/dbx-cli-core`.
 - Generate CLI surface from `operations.rs`; avoid hand-written one-off commands.
 - Default stdout must remain machine-readable JSON or NDJSON.
 - Errors must remain structured JSON.
@@ -31,7 +31,7 @@ cargo run -p dbxcli -- --help
 
 When adding operations:
 
-1. Add registry entry in `crates/dbxcli-core/src/operations.rs`.
+1. Add registry entry in `crates/dbx-cli-core/src/operations.rs`.
 2. Add schema/introspection test if new shape is nontrivial.
 3. Add dry-run test for mutating operation.
 4. Run `cargo fmt && cargo test`.

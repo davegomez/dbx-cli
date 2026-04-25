@@ -41,7 +41,7 @@ pub fn registry_schema() -> Value {
         .collect::<Vec<_>>();
 
     json!({
-        "name": "dbxcli",
+        "name": "dbx-cli",
         "description": "Agent-first Dropbox CLI operation registry",
         "operationCount": operations().len(),
         "resources": resources
@@ -85,7 +85,7 @@ mod tests {
     #[test]
     fn emits_registry_schema() {
         let schema = registry_schema();
-        assert_eq!(schema["name"], "dbxcli");
+        assert_eq!(schema["name"], "dbx-cli");
         assert_eq!(schema["operationCount"], operations().len());
         let resources = schema["resources"].as_array().unwrap();
         assert!(resources
