@@ -34,6 +34,7 @@ NODE
 
 python3 - "$VERSION" <<'PY'
 import pathlib
+import re
 import sys
 
 version = sys.argv[1]
@@ -53,6 +54,20 @@ if cargo.exists():
             lines[index] = f'version = "{version}"'
             break
     cargo.write_text('\n'.join(lines) + '\n')
+
+for manifest in pathlib.Path('crates').glob('*/Cargo.toml') if pathlib.Path('crates').exists() else []:
+    text = manifest.read_text()
+    text = re.sub(
+        r'(dbx-cli-core\s*=\s*\{[^}\n]*version\s*=\s*")[^"]+("[^}\n]*path\s*=\s*"\.\./dbx-cli-core"[^}\n]*\})',
+        rf'\g<1>{version}\g<2>',
+        text,
+    )
+    text = re.sub(
+        r'(dbx-cli-core\s*=\s*\{)(?![^}\n]*version\s*=)([^}\n]*path\s*=\s*"\.\./dbx-cli-core"[^}\n]*\})',
+        rf'\g<1> version = "{version}",\g<2>',
+        text,
+    )
+    manifest.write_text(text)
 
 for skill in pathlib.Path('skills').glob('**/SKILL.md') if pathlib.Path('skills').exists() else []:
     lines = skill.read_text().splitlines()
@@ -77,6 +92,7 @@ cargo generate-lockfile
 files=(package.json Cargo.toml Cargo.lock)
 [ -f pnpm-lock.yaml ] && files+=(pnpm-lock.yaml)
 [ -f npm/package.json ] && files+=(npm/package.json)
+[ -d crates ] && files+=(crates)
 [ -f CHANGELOG.md ] && files+=(CHANGELOG.md)
 [ -d .changeset ] && files+=(.changeset)
 [ -d skills ] && files+=(skills)
