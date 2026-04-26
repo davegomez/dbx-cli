@@ -1,0 +1,40 @@
+name: Nix
+
+on:
+  pull_request:
+    paths:
+      - flake.nix
+      - flake.lock
+      - Cargo.toml
+      - Cargo.lock
+      - crates/**
+      - .github/workflows/nix.yml
+  push:
+    branches:
+      - develop
+    paths:
+      - flake.nix
+      - flake.lock
+      - Cargo.toml
+      - Cargo.lock
+      - crates/**
+      - .github/workflows/nix.yml
+
+jobs:
+  nix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Check flake
+        run: nix flake check
+
+      - name: Build dbx package
+        run: nix build .
+
+      - name: Verify dbx binary
+        run: ./result/bin/dbx --help
