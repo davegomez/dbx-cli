@@ -62,6 +62,19 @@ dbx files list_folder \
   --fields entries.name,entries.id,cursor,has_more
 ```
 
+## Maintainer checks
+
+Run security and dependency policy checks locally before changing dependency metadata:
+
+```bash
+cargo install cargo-audit
+cargo install cargo-deny
+cargo audit --deny warnings
+cargo deny check
+```
+
+CI runs these checks on dependency changes, daily, and on manual dispatch.
+
 ## How to authenticate
 
 Use the built-in shared Dropbox app key:
