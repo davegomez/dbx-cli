@@ -1,0 +1,55 @@
+name: Release (Changesets)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.DBX_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Configure release git user
+        run: |
+          git config --global user.name "dbx-release-bot"
+          git config --global user.email "dbx-release-bot@users.noreply.github.com"
+
+      - name: Create release pull request or tag
+        uses: changesets/action@v1
+        with:
+          version: pnpm run version-sync
+          publish: pnpm run tag-release
+          commit: 'chore: release versions'
+          title: 'chore: release versions'
+          setupGitUser: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.DBX_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
