@@ -1,0 +1,103 @@
+name: Publish Skills
+
+on:
+  pull_request:
+    paths:
+      - skills/**
+      - scripts/validate-skills.py
+      - .github/workflows/publish-skills.yml
+  push:
+    branches:
+      - develop
+    paths:
+      - skills/**
+      - scripts/validate-skills.py
+      - .github/workflows/publish-skills.yml
+  schedule:
+    - cron: '17 7 * * *'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish to ClawHub instead of dry-running
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate skills
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate skill metadata
+        run: python3 scripts/validate-skills.py
+
+  dry-run:
+    name: Dry-run skill publishing
+    needs: validate
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.publish != 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install ClawHub CLI
+        run: npm install --global clawhub@0.7.0
+
+      - name: Dry-run ClawHub sync
+        run: clawhub sync --root skills --all --dry-run
+
+  publish:
+    name: Publish skills
+    needs: validate
+    if: github.event_name != 'pull_request' && !(github.event_name == 'workflow_dispatch' && inputs.publish != 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install ClawHub CLI
+        run: npm install --global clawhub@0.7.0
+
+      - name: Authenticate ClawHub
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLAWHUB_TOKEN:-}" ]; then
+            if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+              echo "::error title=Missing CLAWHUB_TOKEN::Set the CLAWHUB_TOKEN repository secret or rerun workflow_dispatch with publish=false for a dry run."
+              exit 1
+            fi
+            echo "CLAWHUB_TOKEN is not set; skipping publish for ${EVENT_NAME}."
+            echo "skip_publish=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          clawhub login --token "$CLAWHUB_TOKEN"
+
+      - name: Publish skills to ClawHub
+        if: env.skip_publish != 'true'
+        run: clawhub sync --root skills --all
