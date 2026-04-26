@@ -16,6 +16,12 @@ npm install -g dbx-cli
 
 The npm installer downloads the matching `dbx` release asset for your OS and CPU, verifies its `.sha256` checksum, and exposes the `dbx` command.
 
+Or install from crates.io once published:
+
+```bash
+cargo install dbx-cli
+```
+
 ## Quick start
 
 Authenticate with Dropbox:
