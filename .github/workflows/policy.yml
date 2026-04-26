@@ -1,0 +1,47 @@
+name: Policy
+
+on:
+  pull_request:
+  push:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect changed files
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == pull_request* ]]; then
+            git fetch --no-tags origin "$BASE_REF"
+            git diff --name-only "origin/${BASE_REF}...HEAD" > changed-files.txt
+          elif [[ -n "${BEFORE:-}" && "$BEFORE" != "0000000000000000000000000000000000000000" ]] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            git diff --name-only "$BEFORE" "$SHA" > changed-files.txt
+          else
+            git diff-tree --no-commit-id --name-only -r "$SHA" > changed-files.txt
+          fi
+
+          echo "Changed files:"
+          sed 's/^/  - /' changed-files.txt
+
+      - name: Run policy checks
+        env:
+          CHANGED_FILES_FILE: changed-files.txt
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+        run: bash scripts/policy-check.sh
