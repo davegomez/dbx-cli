@@ -75,6 +75,18 @@ cargo deny check
 
 CI runs these checks on dependency changes, daily, and on manual dispatch.
 
+### Skills publishing
+
+Skills under `skills/*/SKILL.md` are hand-maintained. CI validates skill frontmatter and required-skill references on skill changes.
+
+Pull requests run ClawHub sync in dry-run mode and do not require secrets. Pushes to `develop` and scheduled runs publish to ClawHub when `CLAWHUB_TOKEN` is configured; if the token is missing, they skip publishing with a clear notice. Manual runs default to dry-run and only require `CLAWHUB_TOKEN` when `publish=true` is selected.
+
+Run validation locally with:
+
+```bash
+python3 scripts/validate-skills.py
+```
+
 ## How to authenticate
 
 Use the built-in shared Dropbox app key:
