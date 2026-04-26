@@ -22,6 +22,12 @@ Or install from crates.io once published:
 cargo install dbx-cli
 ```
 
+Run with Nix after public availability:
+
+```bash
+nix run github:davegomez/dbx-cli -- --help
+```
+
 ## Quick start
 
 Authenticate with Dropbox:
