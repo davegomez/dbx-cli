@@ -45,7 +45,7 @@ done
 if [[ "$is_pr" == true && "$requires_changeset" == true && "$head_ref" != changeset-release/* ]]; then
   if [[ "$has_changeset" != true ]]; then
     {
-      echo "::error title=Missing changeset::Rust or Cargo changes require a changeset. Run 'pnpm changeset', choose package 'dbx-cli', commit the generated .changeset/*.md file, then push again."
+      echo "::error title=Missing changeset::Rust or Cargo changes require a changeset. Run 'pnpm changeset', choose package '@silky/dbx-cli', commit the generated .changeset/*.md file, then push again."
       echo "Changed Rust/Cargo files:"
       for file in "${changed_files[@]}"; do
         case "$file" in
@@ -75,7 +75,7 @@ import pathlib
 import re
 import sys
 
-allowed = {"dbx-cli"}
+allowed = {"@silky/dbx-cli"}
 failed = False
 for raw_path in sys.argv[1:]:
     path = pathlib.Path(raw_path)
@@ -96,13 +96,13 @@ for raw_path in sys.argv[1:]:
             packages.append(package_match.group(1))
 
     if not packages:
-        print(f"::error file={path},title=Invalid changeset::Changeset must include a semver bump for package 'dbx-cli'.", file=sys.stderr)
+        print(f"::error file={path},title=Invalid changeset::Changeset must include a semver bump for package '@silky/dbx-cli'.", file=sys.stderr)
         failed = True
         continue
 
     for package in packages:
         if package not in allowed:
-            print(f"::error file={path},title=Invalid changeset package::Unsupported changeset package '{package}'. Use 'dbx-cli'.", file=sys.stderr)
+            print(f"::error file={path},title=Invalid changeset package::Unsupported changeset package '{package}'. Use '@silky/dbx-cli'.", file=sys.stderr)
             failed = True
 
 if failed:

@@ -154,6 +154,12 @@ jobs:
 
           Download the archive and matching `.sha256` file for your OS and CPU from the assets below.
 
+          ### npm
+
+          ```bash
+          npm install -g @silky/dbx-cli
+          ```
+
           ### Cargo
 
           ```bash
@@ -217,7 +223,12 @@ jobs:
           EOF
 
           if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
-            echo "Release ${{ github.ref_name }} already exists; refreshing assets."
+            echo "Release ${{ github.ref_name }} already exists; refreshing metadata and assets."
+            gh release edit "${{ github.ref_name }}" \
+              --target "${{ github.sha }}" \
+              --title "${{ github.ref_name }}" \
+              --notes-file release-notes.md \
+              $PRERELEASE_FLAG
             gh release upload "${{ github.ref_name }}" --clobber artifacts/*
           else
             gh release create "${{ github.ref_name }}" \
@@ -249,7 +260,7 @@ jobs:
           VERSION="${{ needs.plan.outputs.version }}"
 
           crate_exists() {
-            cargo info "$1@${VERSION}" >/dev/null 2>&1
+            cargo info "$1@${VERSION}" --registry crates-io >/dev/null 2>&1
           }
 
           wait_for_crate() {
@@ -309,8 +320,9 @@ jobs:
         working-directory: npm
         run: |
           VERSION="${{ needs.plan.outputs.version }}"
-          if npm view "dbx-cli@${VERSION}" version >/dev/null 2>&1; then
-            echo "dbx-cli ${VERSION} already exists on npm, skipping publish."
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          if npm view "${PACKAGE_NAME}@${VERSION}" version >/dev/null 2>&1; then
+            echo "${PACKAGE_NAME} ${VERSION} already exists on npm, skipping publish."
           else
             npm publish --access public --provenance
           fi

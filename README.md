@@ -11,12 +11,12 @@ All examples assume `dbx` is installed and available on `PATH`.
 Install the prebuilt binary with npm:
 
 ```bash
-npm install -g dbx-cli
+npm install -g @silky/dbx-cli
 ```
 
 The npm installer downloads the matching `dbx` release asset for your OS and CPU, verifies its `.sha256` checksum, and exposes the `dbx` command.
 
-Or install from crates.io once published:
+Or install from crates.io:
 
 ```bash
 cargo install dbx-cli
