@@ -216,13 +216,18 @@ jobs:
           ---
           EOF
 
-          gh release create "${{ github.ref_name }}" \
-            --target "${{ github.sha }}" \
-            --title "${{ github.ref_name }}" \
-            --notes-file release-notes.md \
-            --generate-notes \
-            $PRERELEASE_FLAG \
-            artifacts/*
+          if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
+            echo "Release ${{ github.ref_name }} already exists; refreshing assets."
+            gh release upload "${{ github.ref_name }}" --clobber artifacts/*
+          else
+            gh release create "${{ github.ref_name }}" \
+              --target "${{ github.sha }}" \
+              --title "${{ github.ref_name }}" \
+              --notes-file release-notes.md \
+              --generate-notes \
+              $PRERELEASE_FLAG \
+              artifacts/*
+          fi
 
   publish-crates:
     needs:
@@ -239,30 +244,42 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Verify dbx-cli-core package
-        run: cargo publish --dry-run --locked --package dbx-cli-core
-
-      - name: Publish dbx-cli-core
-        run: cargo publish --locked --package dbx-cli-core
-
-      - name: Wait for dbx-cli-core in crates.io index
+      - name: Publish crates
         run: |
           VERSION="${{ needs.plan.outputs.version }}"
-          for attempt in {1..30}; do
-            if cargo search dbx-cli-core --limit 5 | grep -q "^dbx-cli-core = \"${VERSION}\""; then
-              exit 0
-            fi
-            echo "Waiting for dbx-cli-core ${VERSION} in crates.io index (attempt ${attempt}/30)"
-            sleep 10
-          done
-          echo "dbx-cli-core ${VERSION} did not appear in crates.io index in time" >&2
-          exit 1
 
-      - name: Verify dbx-cli package
-        run: cargo publish --dry-run --locked --package dbx-cli
+          crate_exists() {
+            cargo info "$1@${VERSION}" >/dev/null 2>&1
+          }
 
-      - name: Publish dbx-cli
-        run: cargo publish --locked --package dbx-cli
+          wait_for_crate() {
+            crate="$1"
+            for attempt in {1..60}; do
+              if crate_exists "$crate"; then
+                return 0
+              fi
+              echo "Waiting for ${crate} ${VERSION} in crates.io index (attempt ${attempt}/60)"
+              sleep 10
+            done
+            echo "${crate} ${VERSION} did not appear in crates.io index in time" >&2
+            return 1
+          }
+
+          if crate_exists dbx-cli-core; then
+            echo "dbx-cli-core ${VERSION} already exists, skipping publish."
+          else
+            cargo publish --dry-run --locked --package dbx-cli-core
+            cargo publish --locked --package dbx-cli-core
+          fi
+
+          wait_for_crate dbx-cli-core
+
+          if crate_exists dbx-cli; then
+            echo "dbx-cli ${VERSION} already exists, skipping publish."
+          else
+            cargo publish --dry-run --locked --package dbx-cli
+            cargo publish --locked --package dbx-cli
+          fi
 
   publish-npm:
     needs:
@@ -290,4 +307,10 @@ jobs:
 
       - name: Publish npm package
         working-directory: npm
-        run: npm publish --access public --provenance
+        run: |
+          VERSION="${{ needs.plan.outputs.version }}"
+          if npm view "dbx-cli@${VERSION}" version >/dev/null 2>&1; then
+            echo "dbx-cli ${VERSION} already exists on npm, skipping publish."
+          else
+            npm publish --access public --provenance
+          fi
