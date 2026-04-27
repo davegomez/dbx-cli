@@ -111,6 +111,7 @@ jobs:
         shell: pwsh
 
       - name: Attest build provenance
+        if: ${{ !github.event.repository.private }}
         uses: actions/attest-build-provenance@v3
         with:
           subject-path: dbx-cli-${{ matrix.target }}.${{ matrix.archive }}
