@@ -22,11 +22,18 @@ Or install from crates.io:
 cargo install dbx-cli
 ```
 
-Run with Nix after public availability:
+Run with Nix:
 
 ```bash
 nix run github:davegomez/dbx-cli -- --help
 ```
+
+## Documentation
+
+- [Documentation index](docs/README.md)
+- [How to release dbx-cli](docs/how-to/release.md)
+- [Release workflow reference](docs/reference/release-workflow.md)
+- [Release automation design](docs/explanation/release-automation.md)
 
 ## Quick start
 
@@ -63,6 +70,8 @@ dbx files list_folder \
 ```
 
 ## Maintainer checks
+
+Release maintenance documentation lives in [How to release dbx-cli](docs/how-to/release.md) and [Release workflow reference](docs/reference/release-workflow.md).
 
 Run security and dependency policy checks locally before changing dependency metadata:
 

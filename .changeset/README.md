@@ -10,7 +10,7 @@ From a feature branch, run:
 pnpm changeset
 ```
 
-Choose the npm package affected by the change, then choose the semver bump:
+Choose package `@silky/dbx-cli`, then choose the semver bump:
 
 - `patch` for fixes and small compatible changes
 - `minor` for new compatible features
@@ -23,3 +23,5 @@ Commit the generated `.changeset/*.md` file with your code change.
 When changesets land on `develop`, the Release Changesets workflow opens or updates a release PR. That PR runs `pnpm run version-sync` to update package versions, `Cargo.toml`, `Cargo.lock`, npm metadata, skill metadata, and changelogs.
 
 Merging the release PR runs `pnpm run tag-release`, which creates an idempotent `vX.Y.Z` tag. That tag triggers the binary release workflow.
+
+See [How to release dbx-cli](../docs/how-to/release.md) and [Release workflow reference](../docs/reference/release-workflow.md) for maintainer details.
