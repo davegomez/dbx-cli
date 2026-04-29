@@ -14,10 +14,8 @@ targets = [
 
 [advisories]
 db-urls = ["https://github.com/rustsec/advisory-db"]
-vulnerability = "deny"
 yanked = "deny"
-unmaintained = "warn"
-notice = "warn"
+unmaintained = "all"
 ignore = []
 
 [licenses]
